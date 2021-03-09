@@ -38,7 +38,6 @@
       </div>
     </aside>
 
-    {% for followed_user in user.following %}
     <div class="col-lg-6 col-md-8 col-sm-12">
       <ul class="list-group" id="messages">
         {% for msg in messages %}
@@ -65,7 +64,8 @@
         {% endfor %}
       </ul>
     </div>
-    {% endfor %}
+    
+   
 
   </div>
 {% endblock %}
