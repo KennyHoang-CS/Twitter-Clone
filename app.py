@@ -35,7 +35,6 @@ def add_user_to_g():
 
     if CURR_USER_KEY in session:
         g.user = User.query.get(session[CURR_USER_KEY])
-
     else:
         g.user = None
 
@@ -44,9 +43,6 @@ def do_login(user):
     """Log in user."""
 
     session[CURR_USER_KEY] = user.id
-    print('USER ID IS: ', session[CURR_USER_KEY])
-
-
 
 def do_logout():
     """Logout user."""
@@ -214,33 +210,39 @@ def stop_following(follow_id):
 
     return redirect(f"/users/{g.user.id}/following")
 
- # IMPLEMENT THIS
+
 @app.route('/users/profile', methods=["GET", "POST"])
 def profile():
     """Update profile for current user."""
+    
+    # Not our user, so go back to home page. 
     if not g.user:
         flash("Access unauthorized.", "danger")
         return redirect("/")
     
+    # Get the current user in the session.
     user = User.query.get_or_404(int(session[CURR_USER_KEY]))
+
+    # Get our edit form and pass in our user data, so default data will appear on form.
     form = EditUserForm(obj=user)
     if form.validate_on_submit():
         
+        # Authenticate our user using bcrypt for password validation. 
         if User.authenticate(form.username.data, form.password.data) == False:
             flash('Failed to edit user ... password is uncorrect.', 'danger')
             return redirect('/')
 
-        
+        # After passing authentication, set our data to new user inputs. 
         user.username = form.username.data or user.username
         user.email = form.email.data or user.email
         user.image_url = form.image_url.data or user.image_url
         user.header_image_url = form.header_image_url.data or user.header_image_url
         user.bio = form.bio.data or user.bio
 
-
+        # Save the changes to database and redirect back to user's detail page. 
         db.session.commit()
         return redirect(f'/users/{user.id}')
-    else:
+    else:   
         return render_template('users/edit.html', form=form)
 
 
@@ -323,7 +325,7 @@ def homepage():
     
     if g.user:
         following_ids = [f.id for f in g.user.following] + [g.user.id]
-        raise
+        
         messages = (Message
                     .query
                     .filter(Message.user_id.in_(following_ids))
@@ -331,10 +333,51 @@ def homepage():
                     .limit(100)
                     .all())
         
-        return render_template('home.html', messages=messages)
+        liked_msg_ids = [msg.id for msg in g.user.likes]
+
+        return render_template('home.html', messages=messages, likes=liked_msg_ids)
 
     else:
         return render_template('home-anon.html')
+
+
+##################################################################################
+# Like routes
+@app.route('/users/add_like/<int:message_id>', methods=["POST"])
+def handle_like(message_id):
+    """ Process user likes. """
+    
+    # If not our user, redirect back to home page. 
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+
+    # Get the message from our database that was liked. 
+    liked_message = Message.query.get_or_404(message_id)
+    
+    # User cannot 'like' their own messages. 
+    if liked_message.user_id == g.user.id:
+        flash('Cannot like your own message.', 'danger')
+        return redirect('/')
+
+    # Get a list of what the current user 'likes' on messages. 
+    user_likes = g.user.likes
+
+    # Check if the user has already 'liked' the message. 
+    if liked_message in user_likes:
+        g.user.likes = [like for like in user_likes if like != liked_message]
+    else:   # Add it to user's 'like' list if it didn't appear already. 
+        g.user.likes.append(liked_message)
+
+    # Save changes and redirect back to home page. 
+    db.session.commit()
+    return redirect('/')
+
+@app.route('/users/<int:user_id>/likes')
+def show_likes(user_id):
+    """ Show the users' list of likes. """
+    user = User.query.get_or_404(user_id)
+    return render_template('/users/likes.html', user=user, likes=user.likes)
 
 
 ##############################################################################
